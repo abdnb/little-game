@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>错误</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .error-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+        }
+        .error-title {
+            font-size: 40px;
+            margin-bottom: 20px;
+            color: #ff4444;
+        }
+        .error-message {
+            font-size: 20px;
+            margin-bottom: 40px;
+        }
+        .error-hint {
+            font-size: 16px;
+            margin-top: 30px;
+            color: #4f4;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-title">404</div>
+        <div class="error-message">请不要放弃，保持你的决心！</div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        // 记录玩家来到了这个页面，这可能说明他们正在尝试正确的思路
+        localStorage.setItem('tried_level10', 'true');
+        
+        // 输出提示到控制台
+        console.log("answer:level_ten.html");
+
+        // 手动定义第十关的数据
+        const levelData = {
+            type: "special",
+            question: "NaN == NaN",
+            hint: "有时百度也挺好用的",
+            secretKey: [219, 251, 229, 260, 229] 
+        };
+        
+        // 获取并显示当前分数
+        
+        // 检查URL参数
+        function checkURLParam() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const answer = urlParams.get('answer');
+            
+            // 验证答案
+            if (answer && validateAnswer(answer)) {
+                checkAnswer();
+            }
+        }
+        
+        // 验证答案
+        function validateAnswer(input) {
+            // 解密正确答案
+            const secretKey = levelData.secretKey;
+            const encryptKey = [11, 16, 13, 12, 10]; // 混淆密钥
+            
+            // 构建正确答案
+            let correctAnswer = "";
+            for(let i = 0; i < secretKey.length; i++) {
+                correctAnswer += String.fromCharCode((secretKey[i] - encryptKey[i]) / 2);
+            }
+            
+            // 使用全局验证函数的直接比较方法
+            return validateAnswerGlobal(input, correctAnswer, 'direct');
+        }
+        
+        // 检查URL参数
+        checkURLParam();
+    </script>
+</body>
+</html> 

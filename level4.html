@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第四关</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- 添加顶部信息容器 -->
+    <div class="top-info-container">
+        <div class="top-score-info">得分：<span id="top-score">0</span></div>
+        <div class="top-timer-info">时间：<span id="top-timer">0:00</span></div>
+    </div>
+    
+    <div id="game-container">
+        <button id="return-btn" class="return-btn" onclick="location.href='index.html'">返回</button>
+        <div class="hint-info" id="hint-text"></div>
+        <div class="score-info" style="display:none;">得分：<span id="score">0</span></div>
+        <div class="timer-info" style="display:none;">时间：<span id="timer">0:00</span></div>
+        <div class="level-info">第 <span id="level">4</span> 关</div>
+        <canvas id="game-canvas" width="600" height="450"></canvas>
+        <div class="controls">
+            <div class="game-controls">
+                <button id="reset-btn">重置</button>
+                <button id="undo-btn" class="undo-btn">上一步</button>
+            </div>
+            <div class="nav-buttons">
+                <button id="prev-btn" onclick="location.href='level3.html'">上一关</button>
+                <button id="next-btn" onclick="location.href='level5.html'" disabled>下一关</button>
+            </div>
+        </div>
+        <div id="success-message" class="message">恭喜！点击下一关继续</div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const resetBtn = document.getElementById('reset-btn');
+        const undoBtn = document.getElementById('undo-btn');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        
+        const successMessage = document.getElementById('success-message');
+        const levelDisplay = document.getElementById('level');
+        const hintText = document.getElementById('hint-text');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const topScoreDisplay = document.getElementById('top-score');
+        const topTimerDisplay = document.getElementById('top-timer');
+        
+        // 当前关卡编号
+        const currentLevel = 4;
+        const levelData = getLevelData(currentLevel);
+        
+        // 游戏状态
+        let dots = [];
+        let connections = [];
+        let barriers = [];
+        let isDragging = false;
+        let currentDot = null;
+        let history = [];
+        let currentScore = 0;
+        let currentMouseX = 0;
+        let currentMouseY = 0;
+        let timerInterval = null;
+        let levelStartTime = 0;
+        
+        // 初始化函数
+        function initGame() {
+            // 加载提示文本
+            if (levelData.hint) {
+                hintText.textContent = levelData.hint;
+            }
+            
+            // 显示当前总分
+            updateScoreDisplay(scoreDisplay);
+            updateScoreDisplay(topScoreDisplay);
+            
+            // 开始计时
+            levelStartTime = startLevelTimer();
+            timerInterval = updateTimerDisplay(timerDisplay, levelStartTime);
+            timerInterval = updateTimerDisplay(topTimerDisplay, levelStartTime);
+            
+            // 生成点
+            for (let i = 0; i < levelData.dots.length; i++) {
+                dots.push({
+                    x: levelData.dots[i].x, 
+                    y: levelData.dots[i].y,
+                    radius: 12,
+                    index: i,
+                    connected: false
+                });
+            }
+            
+            // 加载挡板
+            barriers = levelData.barriers;
+            
+            // 设置事件监听
+            resetBtn.addEventListener('click', resetLevel);
+            undoBtn.addEventListener('click', undoLastMove);
+            nextBtn.addEventListener('click', () => location.href = 'level5.html');
+            
+            canvas.addEventListener('mousedown', startDrag);
+            canvas.addEventListener('mousemove', dragMove);
+            canvas.addEventListener('mouseup', endDrag);
+            canvas.addEventListener('touchstart', handleTouch, {passive: false});
+            canvas.addEventListener('touchmove', handleTouch, {passive: false});
+            canvas.addEventListener('touchend', handleTouchEnd);
+            
+            // 检查本关是否已完成
+            const completedLevels = JSON.parse(localStorage.getItem('completedLevels') || '[]');
+            if (completedLevels.includes(currentLevel)) {
+                nextBtn.disabled = false;
+            }
+            
+            // 初始化撤销按钮状态
+            updateUndoButton();
+            
+            // 开始绘制游戏
+            drawGame();
+        }
+        
+        // 绘制游戏
+        function drawGame() {
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 计算边框大小，根据画布大小进行调整
+            const borderWidth = Math.max(4, canvas.width * 0.02); // 最小4px，最大为画布宽度的2%
+            const padding = Math.max(10, canvas.width * 0.04); // 最小10px，最大为画布宽度的4%
+            const gridStep = Math.max(20, canvas.width * 0.08); // 网格步长
+            
+            // 绘制长方形背景
+            ctx.fillStyle = '#1a2e1a';
+            ctx.beginPath();
+            ctx.rect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+            ctx.fill();
+            
+            // 绘制长方形的发光边缘
+            ctx.lineWidth = borderWidth;
+            ctx.strokeStyle = 'rgba(0, 150, 0, 0.4)';
+            ctx.beginPath();
+            ctx.rect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+            ctx.stroke();
+            
+            // 绘制星星效果
+            const time = Date.now() / 1000;
+            const starCount = Math.max(5, Math.floor(canvas.width / 60)); // 根据画布宽度调整星星数量
+            
+            for (let i = 0; i < starCount; i++) {
+                const x = Math.sin(time * 0.5 + i * 0.5) * (canvas.width / 3) + canvas.width / 2;
+                const y = Math.cos(time * 0.5 + i * 0.3) * (canvas.height / 3) + canvas.height / 2;
+                const size = Math.sin(time + i) * 2 + Math.max(2, canvas.width * 0.005);
+                
+                ctx.fillStyle = 'rgba(255, 255, 100, 0.5)';
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 绘制参考网格
+            ctx.strokeStyle = 'rgba(40, 80, 40, 0.3)';
+            ctx.lineWidth = 1;
+            
+            // 水平线
+            for (let y = padding * 2; y <= canvas.height - padding * 2; y += gridStep) {
+                ctx.beginPath();
+                ctx.moveTo(padding * 2, y);
+                ctx.lineTo(canvas.width - padding * 2, y);
+                ctx.stroke();
+            }
+            
+            // 垂直线
+            for (let x = padding * 2; x <= canvas.width - padding * 2; x += gridStep) {
+                ctx.beginPath();
+                ctx.moveTo(x, padding * 2);
+                ctx.lineTo(x, canvas.height - padding * 2);
+                ctx.stroke();
+            }
+            
+            // 绘制挡板
+            for (const barrier of barriers) {
+                if (barrier.invisible) continue;
+                
+                // 绘制挡板的主体部分
+                ctx.strokeStyle = 'rgba(220, 220, 220, 0.9)';
+                ctx.lineWidth = barrier.width;
+                ctx.lineCap = 'round';
+                
+                ctx.beginPath();
+                ctx.moveTo(barrier.x1, barrier.y1);
+                ctx.lineTo(barrier.x2, barrier.y2);
+                ctx.stroke();
+                
+                // 挡板的发光效果
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = barrier.width - 4;
+                ctx.beginPath();
+                ctx.moveTo(barrier.x1, barrier.y1);
+                ctx.lineTo(barrier.x2, barrier.y2);
+                ctx.stroke();
+                
+                // 挡板端点的圆形标记
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.beginPath();
+                ctx.arc(barrier.x1, barrier.y1, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(barrier.x2, barrier.y2, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 绘制连接线
+            if (connections.length > 0) {
+                const firstDot = dots[connections[0]];
+                
+                // 连接线的辉光效果
+                ctx.shadowColor = 'rgba(100, 255, 100, 0.8)';
+                ctx.shadowBlur = 10;
+                
+                ctx.strokeStyle = 'rgba(120, 255, 120, 0.8)';
+                ctx.lineWidth = 5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                ctx.beginPath();
+                ctx.moveTo(firstDot.x, firstDot.y);
+                
+                for (let i = 1; i < connections.length; i++) {
+                    const dot = dots[connections[i]];
+                    ctx.lineTo(dot.x, dot.y);
+                }
+                
+                // 如果正在拖动，绘制到鼠标位置的线
+                if (isDragging && currentDot !== null) {
+                    const lastDot = dots[connections[connections.length - 1]];
+                    ctx.moveTo(lastDot.x, lastDot.y);
+                    ctx.lineTo(currentMouseX, currentMouseY);
+                }
+                
+                ctx.stroke();
+                
+                // 重置阴影效果
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+            }
+            
+            // 绘制点
+            for (const dot of dots) {
+                if (dot.connected) {
+                    // 已连接的点
+                    ctx.fillStyle = 'rgba(60, 220, 60, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.radius + 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(60, 220, 60, 0.9)';
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(180, 255, 180, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.radius * 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 未连接的点
+                    ctx.fillStyle = 'rgba(150, 150, 150, 0.3)';
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.radius + 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(180, 180, 180, 0.9)';
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = 'rgba(220, 220, 220, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(dot.x, dot.y, dot.radius * 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            // 持续绘制
+            requestAnimationFrame(drawGame);
+        }
+        
+        // 线段与挡板相交检测
+        function lineIntersectsBarrier(x1, y1, x2, y2, barrier) {
+            // 检查专门阻断的连接
+            if (barrier.blockConnection) {
+                let index1 = -1, index2 = -1;
+                for (let i = 0; i < dots.length; i++) {
+                    const dot = dots[i];
+                    if (Math.abs(dot.x - x1) < 0.1 && Math.abs(dot.y - y1) < 0.1) {
+                        index1 = dot.index;
+                    }
+                    if (Math.abs(dot.x - x2) < 0.1 && Math.abs(dot.y - y2) < 0.1) {
+                        index2 = dot.index;
+                    }
+                }
+                
+                if ((index1 === barrier.blockConnection[0] && index2 === barrier.blockConnection[1]) ||
+                    (index1 === barrier.blockConnection[1] && index2 === barrier.blockConnection[0])) {
+                    return true;
+                }
+            }
+            
+            // 线段相交检测
+            function ccw(A, B, C) {
+                return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+            }
+            
+            const A = {x: x1, y: y1};
+            const B = {x: x2, y: y2};
+            const C = {x: barrier.x1, y: barrier.y1};
+            const D = {x: barrier.x2, y: barrier.y2};
+            
+            // 检测线段是否相交
+            const intersect = ccw(A, C, D) !== ccw(B, C, D) && ccw(A, B, C) !== ccw(A, B, D);
+            
+            if (intersect) {
+                return true;
+            }
+            
+            // 点到线段的距离计算
+            function distPointToLine(px, py, x1, y1, x2, y2) {
+                const A = px - x1;
+                const B = py - y1;
+                const C = x2 - x1;
+                const D = y2 - y1;
+
+                const dot = A * C + B * D;
+                const len_sq = C * C + D * D;
+                let param = -1;
+                
+                if (len_sq !== 0) {
+                    param = dot / len_sq;
+                }
+
+                let xx, yy;
+
+                if (param < 0) {
+                    xx = x1;
+                    yy = y1;
+                }
+                else if (param > 1) {
+                    xx = x2;
+                    yy = y2;
+                }
+                else {
+                    xx = x1 + param * C;
+                    yy = y1 + param * D;
+                }
+
+                const dx = px - xx;
+                const dy = py - yy;
+                
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            // 计算最小距离
+            const dist1 = distPointToLine(A.x, A.y, C.x, C.y, D.x, D.y);
+            const dist2 = distPointToLine(B.x, B.y, C.x, C.y, D.x, D.y);
+            const dist3 = distPointToLine(C.x, C.y, A.x, A.y, B.x, B.y);
+            const dist4 = distPointToLine(D.x, D.y, A.x, A.y, B.x, B.y);
+            
+            const minDist = Math.min(dist1, dist2, dist3, dist4);
+            
+            // 如果最小距离小于挡板宽度的一半，认为相交
+            return minDist < barrier.width / 2;
+        }
+        
+        // 检查线段与线段是否相交
+        function linesIntersect(line1, line2) {
+            const x1 = line1.x1, y1 = line1.y1, x2 = line1.x2, y2 = line1.y2;
+            const x3 = line2.x1, y3 = line2.y1, x4 = line2.x2, y4 = line2.y2;
+            
+            function ccw(a, b, c) {
+                return (c.y - a.y) * (b.x - a.x) > (b.y - a.y) * (c.x - a.x);
+            }
+            
+            const a = {x: x1, y: y1};
+            const b = {x: x2, y: y2};
+            const c = {x: x3, y: y3};
+            const d = {x: x4, y: y4};
+            
+            return ccw(a, c, d) !== ccw(b, c, d) && ccw(a, b, c) !== ccw(a, b, d);
+        }
+        
+        // 检查连接线是否与已有连接线相交
+        function connectionIntersectsExistingLines(newLine) {
+            for (let i = 0; i < connections.length - 1; i++) {
+                // 跳过共享端点的线段
+                if (connections[i] === newLine.startIdx || connections[i+1] === newLine.startIdx || 
+                    connections[i] === newLine.endIdx || connections[i+1] === newLine.endIdx) {
+                    continue;
+                }
+                
+                const dot1 = dots[connections[i]];
+                const dot2 = dots[connections[i+1]];
+                
+                const existingLine = {
+                    x1: dot1.x,
+                    y1: dot1.y,
+                    x2: dot2.x,
+                    y2: dot2.y
+                };
+                
+                if (linesIntersect(newLine, existingLine)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // 检查连接线是否与任何挡板相交
+        function connectionIntersectsBarrier(dot1, dot2) {
+            for (const barrier of barriers) {
+                if (lineIntersectsBarrier(dot1.x, dot1.y, dot2.x, dot2.y, barrier)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // 检查两个点之间是否有其他点
+        function checkDotsAlignment(dot1, dot2) {
+            for (const dot of dots) {
+                if (dot === dot1 || dot === dot2) continue;
+                
+                // 检查点是否在水平线上
+                if (Math.abs(dot1.y - dot2.y) < 0.1 && Math.abs(dot.y - dot1.y) < 0.1) {
+                    const minX = Math.min(dot1.x, dot2.x);
+                    const maxX = Math.max(dot1.x, dot2.x);
+                    if (dot.x > minX && dot.x < maxX) {
+                        return {
+                            blocked: true,
+                            message: "不能跨过同一直线上的点进行连接！"
+                        };
+                    }
+                }
+                
+                // 检查点是否在垂直线上
+                if (Math.abs(dot1.x - dot2.x) < 0.1 && Math.abs(dot.x - dot1.x) < 0.1) {
+                    const minY = Math.min(dot1.y, dot2.y);
+                    const maxY = Math.max(dot1.y, dot2.y);
+                    if (dot.y > minY && dot.y < maxY) {
+                        return {
+                            blocked: true,
+                            message: "不能跨过同一直线上的点进行连接！"
+                        };
+                    }
+                }
+            }
+            return { blocked: false };
+        }
+        
+        // 开始拖动处理
+        function startDrag(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            currentMouseX = mouseX;
+            currentMouseY = mouseY;
+            
+            // 检查是否点击了点
+            for (const dot of dots) {
+                const distance = Math.sqrt((mouseX - dot.x) ** 2 + (mouseY - dot.y) ** 2);
+                if (distance <= dot.radius) {
+                    // 如果点击的是当前连接的最后一个点，不做任何处理
+                    if (connections.length > 0 && connections[connections.length - 1] === dot.index) {
+                        return;
+                    }
+                    
+                    // 如果是新开始连接
+                    if (connections.length === 0) {
+                        // 保存当前状态到历史记录
+                        saveStateToHistory();
+                        
+                        connections.push(dot.index);
+                        dot.connected = true;
+                        isDragging = true;
+                        currentDot = dot;
+                        updateUndoButton();
+                        return;
+                    }
+                    
+                    // 如果点已经连接，不能再次连接
+                    if (dot.connected) return;
+                    
+                    const lastDot = dots[connections[connections.length - 1]];
+                    
+                    // 检查是否有点在同一直线上
+                    const alignmentCheck = checkDotsAlignment(lastDot, dot);
+                    if (alignmentCheck.blocked) {
+                        showError(successMessage, alignmentCheck.message);
+                        return;
+                    }
+                    
+                    // 检查新连接线是否与挡板相交
+                    if (connectionIntersectsBarrier(lastDot, dot)) {
+                        showError(successMessage, "连线不能穿过挡板！");
+                        return;
+                    }
+                    
+                    // 检查新连接线是否与已有连线相交
+                    const newLine = {
+                        x1: lastDot.x,
+                        y1: lastDot.y,
+                        x2: dot.x,
+                        y2: dot.y,
+                        startIdx: lastDot.index,
+                        endIdx: dot.index
+                    };
+                    
+                    if (connectionIntersectsExistingLines(newLine)) {
+                        showError(successMessage, "连线不能与已有的线相交！");
+                        return;
+                    }
+                    
+                    // 保存当前状态到历史记录
+                    saveStateToHistory();
+                    
+                    // 添加连接
+                    connections.push(dot.index);
+                    dot.connected = true;
+                    isDragging = true;
+                    currentDot = dot;
+                    
+                    // 更新撤销按钮状态
+                    updateUndoButton();
+                    
+                    // 检查是否完成关卡
+                    checkLevelCompletion();
+                    break;
+                }
+            }
+        }
+        
+        // 移动拖动处理
+        function dragMove(e) {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            currentMouseX = mouseX;
+            currentMouseY = mouseY;
+            
+            if (!isDragging) return;
+            
+            // 检查是否经过了点
+            for (const dot of dots) {
+                const distance = Math.sqrt((mouseX - dot.x) ** 2 + (mouseY - dot.y) ** 2);
+                if (distance <= dot.radius && !dot.connected) {
+                    // 检查是否穿过挡板
+                    const lastDot = dots[connections[connections.length - 1]];
+                    if (connectionIntersectsBarrier(lastDot, dot)) {
+                        // 如果与挡板相交，不允许连接
+                        continue;
+                    }
+                    
+                    // 检查新连接线是否与已有连线相交
+                    const newLine = {
+                        x1: lastDot.x,
+                        y1: lastDot.y,
+                        x2: dot.x,
+                        y2: dot.y,
+                        startIdx: lastDot.index,
+                        endIdx: dot.index
+                    };
+                    
+                    if (connectionIntersectsExistingLines(newLine)) {
+                        continue;
+                    }
+                    
+                    // 保存当前状态到历史记录（仅当有新连接时）
+                    if (connections.length > 0 && connections[connections.length - 1] !== dot.index) {
+                        saveStateToHistory();
+                    }
+                    
+                    // 添加连接
+                    connections.push(dot.index);
+                    dot.connected = true;
+                    currentDot = dot;
+                    
+                    // 更新撤销按钮状态
+                    updateUndoButton();
+                    
+                    // 检查是否完成关卡
+                    checkLevelCompletion();
+                    break;
+                }
+            }
+        }
+        
+        // 结束拖动
+        function endDrag() {
+            isDragging = false;
+            currentDot = null;
+        }
+        
+        // 处理触摸事件
+        function handleTouch(e) {
+            e.preventDefault();
+            
+            if (e.type === 'touchstart') {
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousedown', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                startDrag(mouseEvent);
+            } else if (e.type === 'touchmove') {
+                const touch = e.touches[0];
+                const mouseEvent = new MouseEvent('mousemove', {
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+                dragMove(mouseEvent);
+            }
+        }
+        
+        // 处理触摸结束事件
+        function handleTouchEnd() {
+            endDrag();
+        }
+        
+        // 检查关卡是否完成
+        function checkLevelCompletion() {
+            if (connections.length === dots.length && connections.length > 0) {
+                return standardCheckSuccess(currentLevel, timerInterval, successMessage, scoreDisplay, 'level5.html');
+            }
+            return false;
+        }
+        
+        // 重置当前关卡
+        function resetLevel() {
+            // 重置连接和点的状态
+            connections = [];
+            for (const dot of dots) {
+                dot.connected = false;
+            }
+            
+            // 清空历史记录
+            history = [];
+            updateUndoButton();
+            
+            // 关闭任何消息
+            successMessage.style.display = 'none';
+        }
+        
+        // 撤销上一步操作
+        function undoLastMove() {
+            if (history.length === 0) return;
+            
+            // 恢复到上一个状态
+            const previousState = history.pop();
+            
+            // 恢复dots状态
+            for (let i = 0; i < dots.length; i++) {
+                dots[i].connected = previousState.dots[i].connected;
+            }
+            
+            // 恢复connections
+            connections = [...previousState.connections];
+            
+            // 更新撤销按钮状态
+            updateUndoButton();
+        }
+        
+        // 保存当前状态到历史记录
+        function saveStateToHistory() {
+            // 创建当前状态的深拷贝
+            const currentState = {
+                dots: dots.map(dot => ({...dot})),
+                connections: [...connections]
+            };
+            
+            // 添加到历史记录
+            history.push(currentState);
+        }
+        
+        // 更新撤销按钮状态
+        function updateUndoButton() {
+            if (history.length > 0) {
+                undoBtn.disabled = false;
+            } else {
+                undoBtn.disabled = true;
+            }
+        }
+        
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>

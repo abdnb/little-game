@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第十关</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .special-question {
+            font-size: 28px;
+            color: #4f4;
+            text-align: center;
+            margin: 20px 0;
+            text-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+        }
+        
+        .special-hint {
+            font-size: 18px;
+            color: #fff;
+            text-align: center;
+            margin-top: 30px;
+            opacity: 0.8;
+        }
+        
+        .challenge-hint {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+            font-style: italic;
+        }
+        
+        @media screen and (max-width: 768px) {
+            .special-question {
+                font-size: 24px;
+            }
+            
+            .special-hint {
+                font-size: 16px;
+            }
+            
+            .challenge-hint {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 添加顶部信息容器 -->
+    <div class="top-info-container">
+        <div class="top-score-info">得分：<span id="top-score">0</span></div>
+        <div class="top-timer-info">时间：<span id="top-timer">0:00</span></div>
+    </div>
+    
+    <div id="game-container">
+        <button id="return-btn" class="return-btn" onclick="location.href='index.html'">返回</button>
+        <div class="hint-info" id="hint-text"></div>
+        <div class="score-info" style="display:none;">得分：<span id="score">0</span></div>
+        <div class="timer-info" style="display:none;">时间：<span id="timer">0:00</span></div>
+        <div class="level-info">第 <span id="level">10</span> 关</div>
+        <canvas id="game-canvas"></canvas>
+        
+        <div id="special-container" class="quiz-container" style="background: rgba(0,0,0,0.6); padding: 40px 20px;">
+            <div class="special-question" id="special-question">NaN == NaN</div>
+        </div>
+        
+        <div class="controls">
+            <div class="game-controls" style="display: none;">
+                <button id="reset-btn">重置</button>
+                <button id="undo-btn" class="undo-btn">上一步</button>
+            </div>
+        </div>
+        <div id="success-message" class="message">恭喜！回答正确</div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const successMessage = document.getElementById('success-message');
+        const hintText = document.getElementById('hint-text');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const topScoreDisplay = document.getElementById('top-score');
+        const topTimerDisplay = document.getElementById('top-timer');
+        
+        // 当前关卡编号
+        const currentLevel = 10;
+        let timerInterval = null;
+        let levelStartTime = 0;
+        
+        // 手动定义第十关的数据
+        const levelData = {
+            type: "special",
+            question: "NaN == NaN",
+            hint: "有时百度也挺好用的",
+            secretAnswer: "false"
+        };
+        
+        // 获取并显示当前分数
+        function loadCurrentScore() {
+            updateScoreDisplay(scoreDisplay);
+            updateScoreDisplay(topScoreDisplay);
+        }
+        
+        // 记录第九关完成
+        function recordPrevLevelCompletion() {
+            // 检查第九关是否已完成
+            const completedLevels = JSON.parse(localStorage.getItem('completedLevels') || '[]');
+            const prevLevel = 9;
+            
+            // 如果第九关未完成，标记为完成并加分
+            if (!completedLevels.includes(prevLevel)) {
+                completedLevels.push(prevLevel);
+                localStorage.setItem('completedLevels', JSON.stringify(completedLevels));
+                
+                // 增加第九关的分数
+                let totalScore = parseInt(localStorage.getItem('totalScore') || '0');
+                totalScore += 10;
+                localStorage.setItem('totalScore', totalScore.toString());
+                
+                // 更新显示的分数
+                loadCurrentScore();
+                
+                // 显示成功消息
+                showSuccess(successMessage, "恭喜！成功通过第九关，得分+10");
+            }
+        }
+        
+        // 初始化函数
+        function initGame() {
+            // 设置响应式画布
+            setupResponsiveCanvas();
+            
+            // 记录第九关完成
+            recordPrevLevelCompletion();
+            
+            // 加载分数
+            updateScoreDisplay(scoreDisplay);
+            updateScoreDisplay(topScoreDisplay);
+            
+            // 开始计时
+            levelStartTime = startLevelTimer();
+            timerInterval = updateTimerDisplay(timerDisplay, levelStartTime);
+            timerInterval = updateTimerDisplay(topTimerDisplay, levelStartTime);
+            
+            // 加载提示文本 - 保留小提示
+            if (levelData.hint) {
+                hintText.textContent = "有时百度也挺好用的";
+            }
+            
+            // 设置问题文本
+            document.getElementById('special-question').textContent = levelData.question;
+            document.getElementById('special-hint').textContent = levelData.hint;
+            
+            // 在控制台留下提示
+            console.log("提示: 在JavaScript中，" + levelData.question + " 的结果是什么？");
+            console.log("找到答案后，尝试将它放入URL中...");
+            
+            // 监听窗口大小变化
+            window.addEventListener('resize', function() {
+                drawGame();
+            });
+            
+            // 开始绘制游戏
+            drawGame();
+        }
+        
+        // 绘制游戏
+        function drawGame() {
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 计算边框大小，根据画布大小进行调整
+            const borderWidth = Math.max(4, canvas.width * 0.02); // 最小4px，最大为画布宽度的2%
+            const padding = Math.max(10, canvas.width * 0.04); // 最小10px，最大为画布宽度的4%
+            
+            // 绘制长方形背景
+            ctx.fillStyle = '#1a2e1a';
+            ctx.beginPath();
+            ctx.rect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+            ctx.fill();
+            
+            // 绘制长方形的发光边缘
+            ctx.lineWidth = borderWidth;
+            ctx.strokeStyle = 'rgba(0, 150, 0, 0.4)';
+            ctx.beginPath();
+            ctx.rect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+            ctx.stroke();
+            
+            // 绘制星星效果
+            const time = Date.now() / 1000;
+            const starCount = Math.max(5, Math.floor(canvas.width / 60)); // 根据画布宽度调整星星数量
+            
+            for (let i = 0; i < starCount; i++) {
+                const x = Math.sin(time * 0.5 + i * 0.5) * (canvas.width / 3) + canvas.width / 2;
+                const y = Math.cos(time * 0.5 + i * 0.3) * (canvas.height / 3) + canvas.height / 2;
+                const size = Math.sin(time + i) * 2 + Math.max(2, canvas.width * 0.005);
+                
+                ctx.fillStyle = 'rgba(255, 255, 100, 0.5)';
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 持续绘制
+            requestAnimationFrame(drawGame);
+        }
+        
+        // 显示成功消息
+        function showSuccess(element, message) {
+            element.textContent = message;
+            element.style.backgroundColor = 'rgba(0, 100, 0, 0.8)';
+            element.style.display = 'block';
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 显示错误消息
+        function showError(element, message) {
+            element.textContent = message;
+            element.style.backgroundColor = 'rgba(150, 0, 0, 0.8)';
+            element.style.display = 'block';
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 2000);
+        }
+        
+        // 检查答案并完成关卡
+        function checkAnswer() {
+            return standardCheckSuccess(currentLevel, timerInterval, successMessage, scoreDisplay, null);
+        }
+        
+        // 检查URL参数
+        function checkURLParam() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const answer = urlParams.get('answer');
+            
+            if (answer === levelData.secretAnswer) {
+                checkAnswer();
+            }
+        }
+        
+        // 初始化游戏
+        initGame();
+        
+        // 检查URL参数
+        checkURLParam();
+    </script>
+</body>
+</html> 

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>第六关</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- 添加顶部信息容器 -->
+    <div class="top-info-container">
+        <div class="top-score-info">得分：<span id="top-score">0</span></div>
+        <div class="top-timer-info">时间：<span id="top-timer">0:00</span></div>
+    </div>
+    
+    <div id="game-container">
+        <button id="return-btn" class="return-btn" onclick="location.href='index.html'">返回</button>
+        <div class="hint-info" id="hint-text"></div>
+        <div class="score-info" style="display:none;">得分：<span id="score">0</span></div>
+        <div class="timer-info" style="display:none;">时间：<span id="timer">0:00</span></div>
+        <div class="level-info">第 <span id="level">6</span> 关</div>
+        <canvas id="game-canvas"></canvas>
+        <div id="quiz-container" class="quiz-container">
+            <div class="quiz-question" id="quiz-question"></div>
+            <input type="text" class="quiz-input" id="quiz-input" placeholder="请输入答案按Enter确认" autocomplete="off">
+        </div>
+        <div class="controls">
+            <div class="game-controls">
+                <button id="reset-btn">重置</button>
+                <button id="undo-btn" class="undo-btn">上一步</button>
+            </div>
+        </div>
+        <div id="success-message" class="message">恭喜！点击下一关继续</div>
+    </div>
+
+    <script src="common.js"></script>
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const resetBtn = document.getElementById('reset-btn');
+        const undoBtn = document.getElementById('undo-btn');
+        
+        const successMessage = document.getElementById('success-message');
+        const levelDisplay = document.getElementById('level');
+        const hintText = document.getElementById('hint-text');
+        const scoreDisplay = document.getElementById('score');
+        const timerDisplay = document.getElementById('timer');
+        const topScoreDisplay = document.getElementById('top-score');
+        const topTimerDisplay = document.getElementById('top-timer');
+        
+        // 当前关卡编号
+        const currentLevel = 6;
+        const levelData = getLevelData(currentLevel);
+        let timerInterval = null;
+        let levelStartTime = 0;
+        
+        // 获取并显示当前分数
+        function loadCurrentScore() {
+            const totalScore = localStorage.getItem('totalScore') || '0';
+            scoreDisplay.textContent = totalScore;
+            topScoreDisplay.textContent = totalScore;
+        }
+        
+        // 初始化函数
+        function initGame() {
+            // 设置响应式画布
+            setupResponsiveCanvas();
+            
+            // 加载分数
+            updateScoreDisplay(scoreDisplay);
+            updateScoreDisplay(topScoreDisplay);
+            
+            // 开始计时
+            levelStartTime = startLevelTimer();
+            timerInterval = updateTimerDisplay(timerDisplay, levelStartTime);
+            timerInterval = updateTimerDisplay(topTimerDisplay, levelStartTime);
+            
+            // 加载提示文本
+            if (levelData.hint) {
+                hintText.textContent = levelData.hint;
+            }
+            
+            // 设置问题文本
+            document.getElementById('quiz-question').textContent = levelData.question;
+            
+            // 隐藏游戏控制按钮
+            document.querySelector('.game-controls').style.display = 'none';
+            
+            // 添加输入事件，实时检查答案
+            const inputEl = document.getElementById('quiz-input');
+            inputEl.addEventListener('input', function() {
+                const userAnswer = this.value.trim();
+                if (validateAnswer(userAnswer)) {
+                    checkAnswer();
+                }
+            });
+            
+            // 保留Enter键提交功能作为备用
+            inputEl.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    checkAnswer();
+                }
+            });
+            
+            // 监听窗口大小变化
+            window.addEventListener('resize', function() {
+                drawGame();
+            });
+            
+            // 开始绘制游戏
+            drawGame();
+        }
+        
+        // 绘制游戏
+        function drawGame() {
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 计算边框大小，根据画布大小进行调整
+            const borderWidth = Math.max(4, canvas.width * 0.02); // 最小4px，最大为画布宽度的2%
+            const padding = Math.max(10, canvas.width * 0.04); // 最小10px，最大为画布宽度的4%
+            
+            // 绘制长方形背景
+            ctx.fillStyle = '#1a2e1a';
+            ctx.beginPath();
+            ctx.rect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+            ctx.fill();
+            
+            // 绘制长方形的发光边缘
+            ctx.lineWidth = borderWidth;
+            ctx.strokeStyle = 'rgba(0, 150, 0, 0.4)';
+            ctx.beginPath();
+            ctx.rect(padding, padding, canvas.width - padding * 2, canvas.height - padding * 2);
+            ctx.stroke();
+            
+            // 绘制星星效果
+            const time = Date.now() / 1000;
+            const starCount = Math.max(5, Math.floor(canvas.width / 60)); // 根据画布宽度调整星星数量
+            
+            for (let i = 0; i < starCount; i++) {
+                const x = Math.sin(time * 0.5 + i * 0.5) * (canvas.width / 3) + canvas.width / 2;
+                const y = Math.cos(time * 0.5 + i * 0.3) * (canvas.height / 3) + canvas.height / 2;
+                const size = Math.sin(time + i) * 2 + Math.max(2, canvas.width * 0.005);
+                
+                ctx.fillStyle = 'rgba(255, 255, 100, 0.5)';
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 持续绘制
+            requestAnimationFrame(drawGame);
+        }
+        
+        // 验证答案函数
+        function validateAnswer(input) {
+            // 使用全局验证函数
+            return validateAnswerGlobal(input, levelData.encryptedAnswer, 'standard');
+        }
+        
+        // 检查答案
+        function checkAnswer() {
+            const userAnswer = document.getElementById('quiz-input').value.trim();
+            
+            if (validateAnswer(userAnswer)) {
+                return standardCheckSuccess(currentLevel, timerInterval, successMessage, scoreDisplay, 'level7.html');
+            } else {
+                // 显示错误消息
+                showError(successMessage, "回答错误，请重试！");
+            }
+        }
+        
+        // 显示成功消息
+        function showSuccess(element, message) {
+            element.textContent = message;
+            element.style.backgroundColor = 'rgba(0, 100, 0, 0.8)';
+            element.style.display = 'block';
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 3000);
+        }
+        
+        // 显示错误消息
+        function showError(element, message) {
+            element.textContent = message;
+            element.style.backgroundColor = 'rgba(150, 0, 0, 0.8)';
+            element.style.display = 'block';
+            
+            setTimeout(() => {
+                element.style.display = 'none';
+            }, 2000);
+        }
+        
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>

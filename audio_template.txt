@@ -1,0 +1,9 @@
+<!-- 添加音频控制元素 -->
+<!-- 将以下代码添加到各个关卡页面的game-container元素结束标签之前 -->
+<div class="audio-controls">
+    <audio id="bgm" loop>
+        <source src="assets/music/bgm.mp3" type="audio/mp3">
+        您的浏览器不支持音频播放
+    </audio>
+    <button id="music-toggle" class="music-btn">🔊</button>
+</div>

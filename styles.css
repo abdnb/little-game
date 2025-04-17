@@ -1,0 +1,452 @@
+/* 全局样式 */
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #1a1a1a;
+    font-family: 'Microsoft YaHei', sans-serif;
+    overflow-x: hidden;
+}
+
+/* 主容器样式 */
+#main-container {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    padding: 40px;
+    background-color: #1a2e1a;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 200, 0, 0.3);
+    text-align: center;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    height: auto;
+    aspect-ratio: 4/3;
+    margin-top: 80px;
+    margin-bottom: 80px;
+}
+
+/* 游戏标题 */
+.game-title {
+    color: #4f4;
+    font-size: 36px;
+    margin-bottom: 30px;
+    text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+/* 关卡选择按钮 */
+.level-selection {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+/* 按钮样式 */
+button {
+    background-color: #333;
+    color: #fff;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+    z-index: 20;
+}
+
+button:hover {
+    background-color: #444;
+}
+
+button:active {
+    background-color: #555;
+}
+
+button:disabled {
+    background-color: #222;
+    color: #666;
+    cursor: not-allowed;
+}
+
+.level-btn {
+    background-color: #333;
+    color: #fff;
+    border: none;
+    padding: 15px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.3s;
+}
+
+.level-btn:hover {
+    background-color: #444;
+    transform: scale(1.05);
+}
+
+.level-btn:disabled {
+    background-color: #222;
+    color: #666;
+    cursor: not-allowed;
+}
+
+.level-btn.completed {
+    background-color: #2a5a2a;
+    border: 2px solid #4f4;
+}
+
+/* 游戏控制按钮 */
+.controls {
+    position: absolute;
+    bottom: -60px;
+    left: 0;
+    width: 100%;
+    z-index: 20;
+}
+
+.game-controls {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding-left: 0;
+}
+
+.return-btn {
+    position: absolute;
+    top: -80px;
+    left: 20px;
+    background-color: #333;
+    color: #fff;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    z-index: 20;
+}
+
+.return-btn:hover {
+    background-color: #444;
+}
+
+.undo-btn {
+    background-color: #555;
+}
+
+.undo-btn:hover {
+    background-color: #666;
+}
+
+.undo-btn:disabled {
+    background-color: #333;
+    color: #666;
+}
+
+.nav-buttons {
+    display: none;
+}
+
+/* Canvas样式 */
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0, 200, 0, 0.3);
+    z-index: 5;
+}
+
+/* 教程和消息样式 */
+.tutorial {
+    margin-top: 30px;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.5);
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.tutorial-content {
+    color: white;
+    text-align: center;
+    line-height: 1.6;
+}
+
+.message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #fff;
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 15px 20px;
+    border-radius: 10px;
+    text-align: center;
+    display: none;
+    z-index: 10;
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+    border: 1px solid rgba(0, 255, 0, 0.5);
+}
+
+/* 分数和关卡信息 */
+.score-info {
+    position: absolute;
+    top: 15px;
+    left: 70px;
+    color: #4f4;
+    font-size: 16px;
+    z-index: 10;
+}
+
+.timer-info {
+    position: absolute;
+    top: 40px;
+    left: 70px;
+    color: #4ff;
+    font-size: 16px;
+    z-index: 10;
+}
+
+.level-info {
+    position: absolute;
+    top: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+    z-index: 20;
+}
+
+.level-info::before,
+.level-info::after {
+    content: none;
+}
+
+.hint-info {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    width: 100%;
+    color: #fff;
+    text-align: center;
+    font-size: 14px;
+    z-index: 20;
+}
+
+/* 答题关卡样式 */
+.quiz-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    z-index: 10;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    border-radius: 10px;
+    border: 1px solid #4f4;
+}
+
+.quiz-question {
+    color: #4f4;
+    font-size: 24px;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.quiz-input {
+    background-color: rgba(50, 50, 50, 0.8);
+    border: 2px solid #4f4;
+    border-radius: 5px;
+    color: white;
+    padding: 10px 15px;
+    font-size: 18px;
+    width: 100%;
+    text-align: center;
+}
+
+.quiz-input:focus {
+    outline: none;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+}
+
+.quiz-submit {
+    background-color: #4f4;
+    color: black;
+    border: none;
+    border-radius: 5px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.quiz-submit:hover {
+    background-color: #6f6;
+    transform: scale(1.05);
+}
+
+/* 音乐控制按钮样式 */
+.audio-controls {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+/* 顶部信息容器 */
+.top-info-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-bottom: 2px solid #33ff33;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    z-index: 100;
+    box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+    padding: 5px 0;
+}
+
+.top-score-info {
+    color: #4f4;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.top-timer-info {
+    color: #4ff;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.music-btn {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.3s;
+}
+
+.music-btn:hover {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.music-btn.muted {
+    color: #999;
+}
+
+/* 响应式媒体查询 */
+@media screen and (max-width: 768px) {
+    #main-container {
+        padding: 20px;
+    }
+    
+    .game-title {
+        font-size: 28px;
+    }
+    
+    .level-selection {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .level-btn {
+        padding: 10px 15px;
+        font-size: 16px;
+    }
+    
+    .score-info {
+        top: -60px;
+        font-size: 18px;
+    }
+    
+    .level-info {
+        top: -35px;
+        font-size: 18px;
+    }
+    
+    .hint-info {
+        top: -85px;
+        font-size: 12px;
+    }
+    
+    .controls {
+        bottom: -50px;
+    }
+    
+    .return-btn {
+        top: -60px;
+        left: 10px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    #main-container {
+        padding: 15px;
+    }
+    
+    .game-title {
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+    
+    .level-selection {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    
+    .level-btn {
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    
+    .tutorial-content {
+        font-size: 14px;
+    }
+    
+    button {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .message {
+        padding: 10px 15px;
+        font-size: 14px;
+    }
+    
+    .quiz-container {
+        padding: 15px;
+    }
+    
+    .quiz-question {
+        font-size: 16px;
+    }
+    
+    .quiz-input {
+        padding: 8px;
+        font-size: 14px;
+    }
+}
